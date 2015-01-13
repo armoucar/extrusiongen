@@ -118,125 +118,112 @@ function isDefaultCanvasSize() {
  * This function is called when the page was completely loaded.
  **/
 function onloadHandler() {
-    
-    // Display current version
-    if( document.getElementById( "version_tag" ) )
-	document.getElementById( "version_tag" ).innerHTML = VERSION_STRING;
+  // Display current version
+  if( document.getElementById( "version_tag" ) )
+    document.getElementById( "version_tag" ).innerHTML = VERSION_STRING;
+
+  // Prepare the sizes for the screen components?
+  if( _DILDO_CONFIG.AUTO_RESIZE_ON_DOCUMENT_LOAD ) {
+
+    //var maxCanvasWidth  = Math.max( _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH,  _DILDO_CONFIG.BEZIER_CANVAS_WIDTH );
+    var maxCanvasHeight = Math.max( _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT, _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT );
+    var defaultHeight   = 10 + 25 + maxCanvasHeight + 10 + 25 + 10 + 50;
+    var defaultWidth    = 10 + _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 10 + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 10 + 400 + 10 + 50;
+
+    // Resize at all?
+    if( defaultHeight > window.innerHeight || defaultWidth > window.innerWidth ) {
+      if( (window.innerHeight-defaultHeight) > (window.innerWidth-defaultWidth) ) {
+
+        // Height weights more than width
+        var effectiveHeight = Math.round( (window.innerWidth - 3*10 - 2*25 - 50)/2 );
+        _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT = _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT = effectiveHeight;
+        _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH  = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH  = Math.round( effectiveHeight * (512.0/768.0) );
+
+      } else {
+
+        // Width weights more than height (or equals)
+        var effectiveWidth = Math.round( (window.innerWidth - 4*10 - 400 - 50)/2 );
+        _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH  = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH  = effectiveWidth;
+        _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT = _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT = Math.round( effectiveWidth * (768.0/512.0) );
+
+      }
+    } // END if [current canvas sizes are out of screen bounds]
+
+  } // END if [auto resize on document load allowed]
 
 
-    // Prepare the sizes for the screen components?
-    if( _DILDO_CONFIG.AUTO_RESIZE_ON_DOCUMENT_LOAD ) {
+  // Add the canvas components
+  _deployCanvasComponents();
+  _resizeCanvasComponents();
+  _repositionComponentsBySize();
 
-	//var maxCanvasWidth  = Math.max( _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH,  _DILDO_CONFIG.BEZIER_CANVAS_WIDTH );
-	var maxCanvasHeight = Math.max( _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT, _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT );
-	var defaultHeight   = 10 + 25 + maxCanvasHeight + 10 + 25 + 10 + 50;
-	var defaultWidth    = 10 + _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 10 + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 10 + 400 + 10 + 50;
-	// Resize at all?
-	if( defaultHeight > window.innerHeight || defaultWidth > window.innerWidth ) {
-	    if( (window.innerHeight-defaultHeight) > (window.innerWidth-defaultWidth) ) {
+  // Install the key handler
+  _installKeyHandler();
 
-		// Height weights more than width
-		var effectiveHeight = Math.round( (window.innerWidth - 3*10 - 2*25 - 50)/2 );
-		_DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT = _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT = effectiveHeight;
-		_DILDO_CONFIG.PREVIEW_CANVAS_WIDTH  = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH  = Math.round( effectiveHeight * (512.0/768.0) );
+  // Try to init WebGL
+  if( !initWebGL() ) {
+    // Show error message.
+    messageBox.show( "<br/>\n" + "<br/>\n" + "<h3>No WebGL!</h3><br/>\n" + "Maybe you want to visit the WebGL support site.<br/>\n" + "<a href=\"http://get.webgl.org/\" target=\"_new\">http://get.webgl.org/</a><br/>\n");
+    return;
+  }
 
-	    } else {
+  // Fetch the GET params
+  // Thanks to weltraumpirat
+  // http://stackoverflow.com/questions/5448545/how-to-retrieve-get-parameters-from-javascript
+  function getSearchParameters() {
+    var url = window.location.href; //search;
+    var index = url.indexOf("?");
+    if( index == -1 || index+1 >= url.length ) 
+      return {};
 
-		// Width weights more than height (or equals)
-		var effectiveWidth = Math.round( (window.innerWidth - 4*10 - 400 - 50)/2 );
-		_DILDO_CONFIG.PREVIEW_CANVAS_WIDTH  = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH  = effectiveWidth;
-		_DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT = _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT = Math.round( effectiveWidth * (768.0/512.0) );
+    var prmstr = url.substr( index+1 );
+    return prmstr != null && prmstr != "" ? transformToAssocArray(prmstr) : {};
+  }
 
-	    }
-	} // END if [current canvas sizes are out of screen bounds]
-
-    } // END if [auto resize on document load allowed]
-
-
-    // Add the canvas components
-    _deployCanvasComponents();
-    _resizeCanvasComponents();
-    _repositionComponentsBySize();
-
-    // Install the key handler
-    _installKeyHandler();
-
-    // Try to init WebGL
-    if( !initWebGL() ) {
-
-	// Show error message.
-	messageBox.show( "<br/>\n" +
-			 "<br/>\n" +
-			 "<h3>No WebGL!</h3><br/>\n" +
-			 //"<br/>\n" +
-			 "Maybe you want to visit the WebGL support site.<br/>\n" +
-			 "<a href=\"http://get.webgl.org/\" target=\"_new\">http://get.webgl.org/</a><br/>\n" 
-			 //"<button onclick=\"messageBox.hide()\" disabled=\"disabled\">Close</button>\n"
-		       );
-	return;
-
+  function transformToAssocArray( prmstr ) {
+    var params = {};
+    var prmarr = prmstr.split("&");
+    for ( var i = 0; i < prmarr.length; i++) {
+      var tmparr = prmarr[i].split("=");
+      params[tmparr[0]] = tmparr[1];
     }
+    return params;
+  }
 
-    
-    // Fetch the GET params
-    // Thanks to weltraumpirat
-    //   http://stackoverflow.com/questions/5448545/how-to-retrieve-get-parameters-from-javascript
-    function getSearchParameters() {
-	var url = window.location.href; //search;
-	var index = url.indexOf("?");
-	if( index == -1 || index+1 >= url.length ) 
-	    return {};
-
-	var prmstr = url.substr( index+1 );
-	return prmstr != null && prmstr != "" ? transformToAssocArray(prmstr) : {};
-    }
-    function transformToAssocArray( prmstr ) {
-	var params = {};
-	var prmarr = prmstr.split("&");
-	for ( var i = 0; i < prmarr.length; i++) {
-            var tmparr = prmarr[i].split("=");
-            params[tmparr[0]] = tmparr[1];
-	}
-	return params;
-    }
-
-    var params = getSearchParameters();
-    _applyParamsToMainForm( params );
-
- 
-
-    // Try to load dildo design from last session cookie (if allowed and if no data is passed)
-    if( _DILDO_CONFIG && _DILDO_CONFIG.AUTOLOAD_ENABLED && !params.rbdata )
-	loadFromCookie(true); // retainErrorStatus
-    if( params.rbdata )
-	_applyReducedBezierData( params.rbdata );
-    
-
-    displayBendingValue();
-    toggleFormElementsEnabled();
-    updateBezierStatistics( null, null );
+  var params = getSearchParameters();
+  _applyParamsToMainForm( params );
 
 
-    // Scale to perfect screen fit?
-    if( params._screenfit && params._screenfit == "1" ) {
-	//window.alert( "Scale to screen fit." );
-	acquireOptimalBezierView();
-    }
 
-    
-    // Is the rendering engine available?
-    // Does this browser support WebGL?
-    previewCanvasHandler.preview_rebuild_model();
-    // Does the configured canvas size differ from the default (hard coded) bezier size?
-    if( !isDefaultCanvasSize() ) // _DILDO_CONFIG.BEZIER_CANVAS_WIDTH != 512 || _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT != 768 )
-	acquireOptimalBezierView();
-    preview_render();
+  // Try to load dildo design from last session cookie (if allowed and if no data is passed)
+  if( _DILDO_CONFIG && _DILDO_CONFIG.AUTOLOAD_ENABLED && !params.rbdata )
+    loadFromCookie(true); // retainErrorStatus
+  if( params.rbdata )
+    _applyReducedBezierData( params.rbdata );
 
 
-    // Finally set a timeout for auto-saving
-    window.setInterval( "autosaveInCookie()", 1000*30 );
+  displayBendingValue();
+  toggleFormElementsEnabled();
+  updateBezierStatistics( null, null );
 
-  
+
+  // Scale to perfect screen fit?
+  if( params._screenfit && params._screenfit == "1" ) {
+    acquireOptimalBezierView();
+  }
+
+
+  // Is the rendering engine available?
+  // Does this browser support WebGL?
+  previewCanvasHandler.preview_rebuild_model();
+  // Does the configured canvas size differ from the default (hard coded) bezier size?
+  if( !isDefaultCanvasSize() ) // _DILDO_CONFIG.BEZIER_CANVAS_WIDTH != 512 || _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT != 768 )
+    acquireOptimalBezierView();
+
+  preview_render();
+
+  // Finally set a timeout for auto-saving
+  window.setInterval( "autosaveInCookie()", 1000*3 );
 }
 
 /**
@@ -244,44 +231,37 @@ function onloadHandler() {
  * bezier_canvas for 2D view).
  **/
 function _deployCanvasComponents() {
-    _deployCanvasComponentWith( "bezier_canvas",
-				_DILDO_CONFIG.BEZIER_CANVAS_WIDTH,
-				_DILDO_CONFIG.BEZIER_CANVAS_HEIGHT,
-				"Double click onto the curve to add new control points. Press the [DEL] key to delete selected points.",
-				"setStatus('Double click onto the curve to add new control points. Press the [DEL] key to delete selected points.');",
-				"setStatus('');",
-				"bezier_canvas_div"
-			       );
-    _deployCanvasComponentWith( "preview_canvas",
-				_DILDO_CONFIG.PREVIEW_CANVAS_WIDTH,
-				_DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT,
-				"Click, hold and drag to rotate the view.",
-				"setStatus('Click, hold and drag to rotate the view.');",
-				"setStatus('');",
-				"preview_canvas_div"
-			       );    
-} 
+  _deployCanvasComponentWith( "bezier_canvas",
+    _DILDO_CONFIG.BEZIER_CANVAS_WIDTH,
+    _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT,
+    "Double click onto the curve to add new control points. Press the [DEL] key to delete selected points.",
+    "setStatus('Double click onto the curve to add new control points. Press the [DEL] key to delete selected points.');",
+    "setStatus('');",
+    "bezier_canvas_div"
+  );
 
-function _deployCanvasComponentWith( id,
-				     width,
-				     height,
-				     title,
-				     mouseover,
-				     mouseout,
-				     div_id
-				   ) {
+  _deployCanvasComponentWith( "preview_canvas",
+    _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH,
+    _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT,
+    "Click, hold and drag to rotate the view.",
+    "setStatus('Click, hold and drag to rotate the view.');",
+    "setStatus('');",
+    "preview_canvas_div"
+  );
+}
 
+function _deployCanvasComponentWith( id, width, height, title, mouseover, mouseout, div_id) {
     var canvas     = document.createElement( "canvas" );
-    canvas.setAttribute( "id",         id );
-    canvas.setAttribute( "width",      width );
-    canvas.setAttribute( "height",     height );
-    canvas.setAttribute( "title",      title );
-    canvas.setAttribute( "class",      "tooltip" );
-    canvas.setAttribute( "mouseover",  mouseover );
-    canvas.setAttribute( "mouseout",   mouseout );
+    canvas.setAttribute("id", id );
+    canvas.setAttribute("width", width );
+    canvas.setAttribute("height", height );
+    canvas.setAttribute("title", title );
+    canvas.setAttribute("class", "tooltip" );
+    canvas.setAttribute("mouseover", mouseover );
+    canvas.setAttribute("mouseout", mouseout );
     var preview_canvas_div = document.getElementById( div_id );
+
     document.body.appendChild( canvas );
-    
 }
 
 /**
@@ -293,107 +273,103 @@ function _deployCanvasComponentWith( id,
  *  - _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT
  **/
 function _resizeCanvasComponents() {
-    var preview_canvas          = getPreviewCanvas(); 
-    var bezier_canvas           = getBezierCanvas();
+  var preview_canvas          = getPreviewCanvas();
+  var bezier_canvas           = getBezierCanvas();
 
-    preview_canvas.style.width  = _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH   + "px";
-    preview_canvas.style.height = _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT  + "px";  
-    // Might be called during initialisation
-    if( this.previewCanvasHandler ) {
-	this.previewCanvasHandler.setRendererSize( _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH, 
-						   _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT
-						 );
-    }
+  preview_canvas.style.width  = _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH   + "px";
+  preview_canvas.style.height = _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT  + "px";  
 
-    bezier_canvas.style.width   = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH    + "px";
-    bezier_canvas.style.height  = _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT   + "px";
-    // Might be called during initialisation
-    if( this.bezierCanvasHandler ) {
-	this.bezierCanvasHandler.setRendererSize( _DILDO_CONFIG.BEZIER_CANVAS_WIDTH, 
-						  _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT,
-						  true  // redraw
-						);
-    }
-    
+  // Might be called during initialisation
+  if( this.previewCanvasHandler ) {
+    this.previewCanvasHandler.setRendererSize( _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH, _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT);
+  }
+
+  bezier_canvas.style.width   = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH    + "px";
+  bezier_canvas.style.height  = _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT   + "px";
+
+  // Might be called during initialisation
+  if( this.bezierCanvasHandler ) {
+    this.bezierCanvasHandler.setRendererSize( _DILDO_CONFIG.BEZIER_CANVAS_WIDTH, _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT, true);
+  }
 }
 
 function _repositionComponentsBySize() {
-    var preview_canvas        = getPreviewCanvas(); 
-    var bezier_canvas         = getBezierCanvas(); 
-    
-    // Note: the members 'x' and 'y' somehow don't seem to work here.
-    preview_canvas.style.x    = preview_canvas.style.left = "10px";
-    preview_canvas.style.y    = preview_canvas.style.top  = "40px";
-    
-    var bezierLeft            = (10 + _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 10);
-    bezier_canvas.style.x     = bezier_canvas.style.left = bezierLeft + "px";
-    bezier_canvas.style.y     = bezier_canvas.style.top  = "40px";
-    
-    var maxCanvasHeight       = Math.max( _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT, 
-					  _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT
-					);
-    var status_bar            = getStatusBar();
-    status_bar.style.y        = status_bar.style.top = (40 + maxCanvasHeight + 10) + "px";
-    status_bar.style.width    = (_DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 10 + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH) + "px";
-    
+  var preview_canvas        = getPreviewCanvas(); 
+  var bezier_canvas         = getBezierCanvas(); 
 
-    //window.alert( bezier_canvas.style.x );
-    
-    // Re-align register-head
-    var registerHead          = document.getElementById( "register_head" );
-    var registerLeft          = ( 10 + 
-				  _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 
-				  10 + 
-				  _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 
-				  10 );
-    registerHead.style.x      = registerHead.style.left = registerLeft + "px";
-    
-    // Re-align register-cards
-    var divs = document.getElementsByTagName( "DIV" );
-    for( var i = 0; i < divs.length; i++ ) {
+  // Note: the members 'x' and 'y' somehow don't seem to work here.
+  preview_canvas.style.x    = preview_canvas.style.left = "10px";
+  preview_canvas.style.y    = preview_canvas.style.top  = "40px";
 
-	var entry = divs[i];
-	if( !entry.className || entry.className != "register_card" )
-	    continue;
+  var bezierLeft            = (10 + _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 10);
+  bezier_canvas.style.x     = bezier_canvas.style.left = bezierLeft + "px";
+  bezier_canvas.style.y     = bezier_canvas.style.top  = "40px";
 
-	entry.style.x        = entry.style.left =  registerLeft+ "px";
-
-    }
-
-    // Reposition the Gallery-Links
-    var galleryLinks            = document.getElementById( "gallery_links" );
-    gallery_links.style.x       = gallery_links.style.left = bezierLeft + "px";
+  var maxCanvasHeight       = Math.max( _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT, 
+      _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT
+      );
+  var status_bar            = getStatusBar();
+  status_bar.style.y        = status_bar.style.top = (40 + maxCanvasHeight + 10) + "px";
+  status_bar.style.width    = (_DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 10 + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH) + "px";
 
 
-    // Reposition the 'informational' area (div)
-    var informational           = document.getElementById( "informational" );
-    informational.style.x       = informational.style.left = registerLeft + "px";
-    
-    // Reposition the 'license' area (div)
-    var license                 = document.getElementById( "license" );
-    license.style.x             = license.style.left       = registerLeft + "px";
-    
-    // Reposition the 'preview_controls' area (div)
-    var previewControls         = document.getElementById( "preview_controls" );
-    previewControls.style.width = _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + "px";
-    // previewControls.style.backgroundColor = "#ff0000";
-    previewControls.style.x     = previewControls.style.left = "10px";
-    previewControls.style.y     = previewControls.style.top  = (40 + _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT + 10 + 16 + 10) + "px";
+  //window.alert( bezier_canvas.style.x );
 
-    var bezierControls          = document.getElementById( "bezier_controls" );
-    bezierControls.style.width  = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + "px";
-    bezierControls.style.x      = bezierControls.style.left = bezierLeft + "px";
-    bezierControls.style.y      = bezierControls.style.top  = (40 + _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT + 10 + 16 + 10) + "px";
+  // Re-align register-head
+  var registerHead          = document.getElementById( "register_head" );
+  var registerLeft          = ( 10 + 
+      _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + 
+      10 + 
+      _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 
+      10 );
+  registerHead.style.x      = registerHead.style.left = registerLeft + "px";
 
-    var donations               = document.getElementById( "donations" );
-    donations.style.x           = donations.style.left   = (bezierLeft + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 75) + "px";
-    
-    var versionTag              = document.getElementById( "version_tag" );
-    // 400px is the _constant_ width of the control panel
-    versionTag.style.width      = "300px";
-    versionTag.style.x          = versionTag.style.left  = (bezierLeft + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 280 + 10) + "px"; 
-    versionTag.style.y          = versionTag.style.top   = "200px";
-    //versionTag.style.backgroundColor = "#ff0000";
+  // Re-align register-cards
+  var divs = document.getElementsByTagName( "DIV" );
+  for( var i = 0; i < divs.length; i++ ) {
+
+    var entry = divs[i];
+    if( !entry.className || entry.className != "register_card" )
+      continue;
+
+    entry.style.x        = entry.style.left =  registerLeft+ "px";
+
+  }
+
+  // Reposition the Gallery-Links
+  var galleryLinks            = document.getElementById( "gallery_links" );
+  gallery_links.style.x       = gallery_links.style.left = bezierLeft + "px";
+
+
+  // Reposition the 'informational' area (div)
+  var informational           = document.getElementById( "informational" );
+  informational.style.x       = informational.style.left = registerLeft + "px";
+
+  // Reposition the 'license' area (div)
+  var license                 = document.getElementById( "license" );
+  license.style.x             = license.style.left       = registerLeft + "px";
+
+  // Reposition the 'preview_controls' area (div)
+  var previewControls         = document.getElementById( "preview_controls" );
+  previewControls.style.width = _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH + "px";
+  // previewControls.style.backgroundColor = "#ff0000";
+  previewControls.style.x     = previewControls.style.left = "10px";
+  previewControls.style.y     = previewControls.style.top  = (40 + _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT + 10 + 16 + 10) + "px";
+
+  var bezierControls          = document.getElementById( "bezier_controls" );
+  bezierControls.style.width  = _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + "px";
+  bezierControls.style.x      = bezierControls.style.left = bezierLeft + "px";
+  bezierControls.style.y      = bezierControls.style.top  = (40 + _DILDO_CONFIG.BEZIER_CANVAS_HEIGHT + 10 + 16 + 10) + "px";
+
+  var donations               = document.getElementById( "donations" );
+  donations.style.x           = donations.style.left   = (bezierLeft + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 75) + "px";
+
+  var versionTag              = document.getElementById( "version_tag" );
+  // 400px is the _constant_ width of the control panel
+  versionTag.style.width      = "300px";
+  versionTag.style.x          = versionTag.style.left  = (bezierLeft + _DILDO_CONFIG.BEZIER_CANVAS_WIDTH + 280 + 10) + "px"; 
+  versionTag.style.y          = versionTag.style.top   = "200px";
+  //versionTag.style.backgroundColor = "#ff0000";
 }
 
 /**
@@ -464,22 +440,18 @@ function _applyParamsToMainForm( params ) {
  * (GET param).
  **/
 function _applyReducedBezierData( reducedBezierData ) {
-    
-    try {
-	// Parse the point data and convert it to a bezier curve
-	var bezierPath = IKRS.BezierPath.fromReducedListRepresentation( reducedBezierData );
-	
-	//window.alert( bezierPath );
+  try {
+    // Parse the point data and convert it to a bezier curve
+    var bezierPath = IKRS.BezierPath.fromReducedListRepresentation( reducedBezierData );
 
-	// Set the created curve
-	setBezierPath( bezierPath );
-	return true;
-	
-    } catch( e ) {
-	console.log( "Failed to load bezier path from GET params: " + e );
-	setStatus( "Failed to load bezier path from GET params: " + e );
-	return false;
-    }
+    // Set the created curve
+    setBezierPath( bezierPath );
+    return true;
+  } catch( e ) {
+    console.log( "Failed to load bezier path from GET params: " + e );
+    setStatus( "Failed to load bezier path from GET params: " + e );
+    return false;
+  }
 }
 
 /**
@@ -497,10 +469,7 @@ function _installKeyHandler() {
 
 // IE < v9 does not support this function.
 if( window.addEventListener ) {
-    window.addEventListener( "load",
-			     onloadHandler,
-			     false
-			   );
+    window.addEventListener( "load", onloadHandler, false);
 } else {
     window.onload = onloadHandler;
 }
@@ -543,114 +512,109 @@ function getBezierPath() {
 
 function initWebGL() {
 
-    try {
-	this.bezierCanvasHandler = new IKRS.BezierCanvasHandler();
-	this.bezierCanvasHandler.addChangeListener( updateBezierStatistics );  // A function
-	this.previewCanvasHandler = new IKRS.PreviewCanvasHandler( this.bezierCanvasHandler,
-								   _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH,     // 512, 
-								   _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT     // 768 
-								 );
-    
-	// Indicate success.
-	setStatus( "WebGL initialized. Ready." );
-	return true;
-    } catch( e ) {
-	console.log( "Error: failed to initiate canvas handlers. Is WebGL enabled/supported?" );
-	setStatus( "Error: failed to initiate canvas handlers. Is WebGL enabled/supported?" );
-	// Indicate error.
-	return false;
-    }
+  try {
+    this.bezierCanvasHandler = new IKRS.BezierCanvasHandler();
+    this.bezierCanvasHandler.addChangeListener( updateBezierStatistics );  // A function
+    this.previewCanvasHandler = new IKRS.PreviewCanvasHandler( this.bezierCanvasHandler,
+        _DILDO_CONFIG.PREVIEW_CANVAS_WIDTH,     // 512, 
+        _DILDO_CONFIG.PREVIEW_CANVAS_HEIGHT     // 768 
+        );
+
+    // Indicate success.
+    setStatus( "WebGL initialized. Ready." );
+    return true;
+
+  } catch( e ) {
+    console.log( "Error: failed to initiate canvas handlers. Is WebGL enabled/supported?" );
+    setStatus( "Error: failed to initiate canvas handlers. Is WebGL enabled/supported?" );
+    // Indicate error.
+    return false;
+  }
 }
 
 /**
  * Signature as a bezier canvas listener :)
  **/
 function updateBezierStatistics( source, event ) {
-    if( event && event.nextEventFollowing )
-	return; // Wait for last event in sequence, THEN update (saves resources)
+  if( event && event.nextEventFollowing )
+    return; // Wait for last event in sequence, THEN update (saves resources)
 
-    // Calculate the bezier curves inner area size.
-    // The resulting value is in square units.
-    var bezierAreaSize = this.bezierCanvasHandler.getBezierPath().computeVerticalAreaSize( 1.0,   // deltaSize
-											   true   // useAbsoluteValues
-											 );
-    var bounds         = this.bezierCanvasHandler.getBezierPath().computeBoundingBox();
-    // Now imagine the whole are to be a rectangle with the same height.
-    // The resulting radius is then:
-    //var imaginaryRectangleWidth = bezierAreaSize / bounds.getHeight();
-    
-    // Now imagine the solid revolution of that rectangle.
-    // It's volume is the value we are interesed in. It equals the volume of the present mesh.
-    // Volume = PI * square(radius) * height
-    //var volumeInUnits_old = Math.PI * Math.pow(imaginaryRectangleWidth,2) * bounds.getHeight();
-    var volumeInUnits     = this.bezierCanvasHandler.getBezierPath().computeVerticalRevolutionVolumeSize( //1.0,   // deltaSize
-													  true   // useAbsoluteValues
-													);
-    
+  // Calculate the bezier curves inner area size.
+  // The resulting value is in square units.
+  var bezierAreaSize = this.bezierCanvasHandler.getBezierPath().computeVerticalAreaSize( 1.0,   // deltaSize
+      true   // useAbsoluteValues
+      );
 
-    var areaSize_squareMillimeters = bezierAreaSize * Math.pow( this.bezierCanvasHandler.getMillimeterPerUnit(), 2.0 );
-    var volume_cubeMillimeters     = volumeInUnits * Math.pow( this.bezierCanvasHandler.getMillimeterPerUnit(), 3.0 );
+  var bounds         = this.bezierCanvasHandler.getBezierPath().computeBoundingBox();
+  // Now imagine the whole are to be a rectangle with the same height.
+  // The resulting radius is then:
+  //var imaginaryRectangleWidth = bezierAreaSize / bounds.getHeight();
 
-    // There is a serious bug in the calculation:
-    //  The computed volume is about 25%-30& too high!
-    //  Didn't find the cause so far :(
-    volume_cubeMillimeters *= 0.75;
+  // Now imagine the solid revolution of that rectangle.
+  // It's volume is the value we are interesed in. It equals the volume of the present mesh.
+  // Volume = PI * square(radius) * height
+  //var volumeInUnits_old = Math.PI * Math.pow(imaginaryRectangleWidth,2) * bounds.getHeight();
+  var volumeInUnits     = this.bezierCanvasHandler.getBezierPath().computeVerticalRevolutionVolumeSize( //1.0,   // deltaSize
+      true   // useAbsoluteValues
+      );
 
-    var volume_cubeMilliLiters     = volume_cubeMillimeters / 1000.0;
-    var lowDensity                 = 0.76;
-    var highDensity                = 1.07;
-    var imperialCup                = 284.130642624675; // ml
-    var usCup                      = 236.5882365;      // ml
-    var weight_lowDensity          = roundToDigits((volume_cubeMillimeters/1000)*lowDensity,0);
-    var weight_highDensity         = roundToDigits((volume_cubeMillimeters/1000)*highDensity,0);
-    var tableData = [
-	[ "Diameter",     roundToDigits((bounds.getWidth()/10)*2*this.bezierCanvasHandler.getMillimeterPerUnit(),1,3),            "cm"  ],
-	[ "Height",       roundToDigits((bounds.getHeight()/10)*this.bezierCanvasHandler.getMillimeterPerUnit(),1,3),             "cm"  ],
-	[ "Bezier Area",  roundToDigits((areaSize_squareMillimeters/100.0),2,3),                                                  "cm<sup>2</sup>"  ],
-	[ "Volume",       roundToDigits((volume_cubeMillimeters/1000.0),1,3),                                                     "cm<sup>3</sup> | ml"  ],
-	[ "",             roundToDigits((volume_cubeMilliLiters/imperialCup),1,3),                                                " Imperial Cups"  ],
-	[ "",             roundToDigits((volume_cubeMilliLiters/usCup),1,3),                                                      " US Cups"  ],
-	[ "Weight<br/>&nbsp;[low density silicone, " + lowDensity + "g/cm<sup>3</sup>]", roundToDigits(weight_lowDensity,0,3),    "g"  ],
-	[ "Weight<br/>&nbsp;[high density silicone, " + highDensity + "g/cm<sup>3</sup>]", roundToDigits(weight_highDensity,0,3), "g"  ]
-    ];
-    document.getElementById( "volume_and_weight" ).innerHTML = makeTable( tableData );
 
-    preview_rebuild_model();
+  var areaSize_squareMillimeters = bezierAreaSize * Math.pow( this.bezierCanvasHandler.getMillimeterPerUnit(), 2.0 );
+  var volume_cubeMillimeters     = volumeInUnits * Math.pow( this.bezierCanvasHandler.getMillimeterPerUnit(), 3.0 );
+
+  // There is a serious bug in the calculation:
+  //  The computed volume is about 25%-30& too high!
+  //  Didn't find the cause so far :(
+  volume_cubeMillimeters *= 0.75;
+
+  var volume_cubeMilliLiters     = volume_cubeMillimeters / 1000.0;
+  var lowDensity                 = 0.76;
+  var highDensity                = 1.07;
+  var imperialCup                = 284.130642624675; // ml
+  var usCup                      = 236.5882365;      // ml
+  var weight_lowDensity          = roundToDigits((volume_cubeMillimeters/1000)*lowDensity,0);
+  var weight_highDensity         = roundToDigits((volume_cubeMillimeters/1000)*highDensity,0);
+  var tableData = [
+    [ "Diameter", roundToDigits((bounds.getWidth()/10)*2*this.bezierCanvasHandler.getMillimeterPerUnit(),1,3), "cm"  ],
+    [ "Height", roundToDigits((bounds.getHeight()/10)*this.bezierCanvasHandler.getMillimeterPerUnit(),1,3), "cm"  ],
+    [ "Bezier Area", roundToDigits((areaSize_squareMillimeters/100.0),2,3), "cm<sup>2</sup>"  ],
+    [ "Volume", roundToDigits((volume_cubeMillimeters/1000.0),1,3), "cm<sup>3</sup> | ml"  ],
+    [ "", roundToDigits((volume_cubeMilliLiters/imperialCup),1,3), " Imperial Cups"  ],
+    [ "", roundToDigits((volume_cubeMilliLiters/usCup),1,3), " US Cups"  ],
+    [ "Weight<br/>&nbsp;[low density silicone, " + lowDensity + "g/cm<sup>3</sup>]", roundToDigits(weight_lowDensity,0,3), "g"  ],
+    [ "Weight<br/>&nbsp;[high density silicone, " + highDensity + "g/cm<sup>3</sup>]", roundToDigits(weight_highDensity,0,3), "g"  ]
+      ];
+  document.getElementById( "volume_and_weight" ).innerHTML = makeTable( tableData );
+
+  preview_rebuild_model();
 }
 
 function makeTable( tableData ) {
-    // I know, this is ugly.
-    // String concatenation _and_ direct HTML insert insert DOM use. Bah!
-    // Please optimize.
-    var result = "<table style=\"border: 1px solid #686868;\">";
-    for( var r = 0; r < tableData.length; r++ ) {
 
-	result += "<tr>\n";
-	for( var c = 0; c < tableData[r].length; c++ ) {
-
-	    //var valign = "top";
-	    //var align  = "left";
-
-	    if( c == 1 )
-		result += "<td valign=\"bottom\" align=\"right\">" + tableData[r][c] + "&nbsp;</td>\n";
-	    else
-		result += "<td valign=\"bottom\">" + tableData[r][c] + "&nbsp;</td>\n";
-
-	}
-	result += "</tr>\n";
-
+  // I know, this is ugly.
+  // String concatenation _and_ direct HTML insert insert DOM use. Bah!
+  // Please optimize.
+  var result = "<table style=\"border: 1px solid #686868;\">";
+  for( var r = 0; r < tableData.length; r++ ) {
+    result += "<tr>\n";
+    for( var c = 0; c < tableData[r].length; c++ ) {
+      if( c == 1 )
+        result += "<td valign=\"bottom\" align=\"right\">" + tableData[r][c] + "&nbsp;</td>\n";
+      else
+        result += "<td valign=\"bottom\">" + tableData[r][c] + "&nbsp;</td>\n";
     }
-    result += "</table>\n";
-    return result;
+
+    result += "</tr>\n";
+  }
+
+  result += "</table>\n";
+  return result;
 }
 
 function preview_render() {
-  
   // Recursive call
-  requestAnimationFrame( this.preview_render ); 
-  previewCanvasHandler.render( this.preview_scene, 
-			       this.preview_camera 
-			       ); 
+  requestAnimationFrame( this.preview_render );
+  previewCanvasHandler.render( this.preview_scene, this.preview_camera);
 }
 
 function decreaseZoomFactor( redraw ) {
@@ -702,24 +666,24 @@ function increase_mesh_details() {
 
 function decrease_mesh_details() {
 
-	var shape_segments = this.document.forms["mesh_form"].elements["shape_segments"].value;
-	var path_segments  = this.document.forms["mesh_form"].elements["path_segments"].value;		
-			
-	shape_segments     = parseInt( shape_segments );
-	path_segments      = parseInt( path_segments );
-			
-	shape_segments     = Math.max( 3, Math.floor( shape_segments / 1.2 ) );
-	path_segments      = Math.max( 2, Math.floor( path_segments  / 1.2 ) );
+  var shape_segments = this.document.forms["mesh_form"].elements["shape_segments"].value;
+  var path_segments  = this.document.forms["mesh_form"].elements["path_segments"].value;		
 
-        if( shape_segments < 3 && path_segments < 2 )
-	    return; // No change
+  shape_segments     = parseInt( shape_segments );
+  path_segments      = parseInt( path_segments );
 
-    // The min or max bound might have been reached and the segment values
-    // were re-adjusted. Display the new value in the HTML form.
-	this.document.forms["mesh_form"].elements["shape_segments"].value = shape_segments;
-	this.document.forms["mesh_form"].elements["path_segments"].value  = path_segments;
-			
-	preview_rebuild_model();
+  shape_segments     = Math.max( 3, Math.floor( shape_segments / 1.2 ) );
+  path_segments      = Math.max( 2, Math.floor( path_segments  / 1.2 ) );
+
+  if( shape_segments < 3 && path_segments < 2 )
+    return; // No change
+
+  // The min or max bound might have been reached and the segment values
+  // were re-adjusted. Display the new value in the HTML form.
+  this.document.forms["mesh_form"].elements["shape_segments"].value = shape_segments;
+  this.document.forms["mesh_form"].elements["path_segments"].value  = path_segments;
+
+  preview_rebuild_model();
 
 }
 
@@ -727,37 +691,34 @@ function preview_rebuild_model() {
   this.previewCanvasHandler.preview_rebuild_model();
 }
 
-
 function newScene() {
-      
-    var defaultSettings = {
-	shapeSegments:     80,
-	pathSegments:      80,
-	bendAngle:         0,
-	buildNegativeMesh: false,
-	meshHullStrength:  12,
-	closePathBegin:    false,
-	closePathEnd:      true,
-	wireframe:         false,
-	triangulate:       true,
-	parts:             null,  // default: "both"
-	shapeTwist:        0,
-	shapeStyle:        null   // default: "circle"
-    };
+  var defaultSettings = {
+    shapeSegments:     80,
+    pathSegments:      80,
+    bendAngle:         0,
+    buildNegativeMesh: false,
+    meshHullStrength:  12,
+    closePathBegin:    false,
+    closePathEnd:      true,
+    wireframe:         false,
+    triangulate:       true,
+    parts:             null,  // default: "both"
+    shapeTwist:        0,
+    shapeStyle:        null   // default: "circle"
+  };
 
-    ZipFileImporter._apply_mesh_settings( defaultSettings );
+  ZipFileImporter._apply_mesh_settings( defaultSettings );
 
-
-    var json = getDefaultBezierJSON();
+  var json = getDefaultBezierJSON();
     setBezierPathFromJSON( json,  // a JSON string containing the bezier data
-			   0      // bend_angle
-			 );
-    
-    // Clear dildo ID (otherwise the new design cannot be published)
-    setCurrentDildoID( -1, "" );
-    
-    if( !isDefaultCanvasSize() )
-	acquireOptimalBezierView();
+      10      // bend_angle
+      );
+
+  // Clear dildo ID (otherwise the new design cannot be published)
+  setCurrentDildoID( -1, "" );
+
+  if( !isDefaultCanvasSize() )
+    acquireOptimalBezierView();
 }
 
 function setBezierPathFromJSON( bezier_json, bend_angle ) {
@@ -1011,23 +972,22 @@ function saveInCookie() {
 }
 
 function loadFromCookie( retainErrorStatus ) {
-    var bend       = getCookie( "bend" );
-    var bezierJSON = getCookie( "bezier_path" );
-    //window.alert( "bend=" + bend + ", bezier_path=" + bezierJSON );
-    
-    // Try to convert JSON string to BezierPath object
-    try {
-	var bezier_path = IKRS.BezierPath.fromJSON( bezierJSON );
-	setBendingValue( bend );
-	setBezierPath( bezier_path );
-	return true;
-    } catch( e ) {
-	if( !retainErrorStatus ) {
-	    console.log( "Failed to load bezier path from cookie: " + e );
-	    setStatus( "Failed to load bezier path from cookie: " + e );
-	}
-	return false;
+  var bend       = getCookie( "bend" );
+  var bezierJSON = getCookie( "bezier_path" );
+
+  // Try to convert JSON string to BezierPath object
+  try {
+    var bezier_path = IKRS.BezierPath.fromJSON( bezierJSON );
+    setBendingValue( bend );
+    setBezierPath( bezier_path );
+    return true;
+  } catch( e ) {
+    if( !retainErrorStatus ) {
+      console.log( "Failed to load bezier path from cookie: " + e );
+      setStatus( "Failed to load bezier path from cookie: " + e );
     }
+    return false;
+  }
 }
 
 /**
@@ -1476,7 +1436,6 @@ function setCurrentDildoID( dildoID, public_hash ) {
 }
 
 function acquireOptimalBezierView() {
-    
     // Optimize view:
     this.bezierCanvasHandler.acquireOptimalView( new THREE.Vector2(75,75) );
 }
@@ -1522,18 +1481,17 @@ function show_bezier_input_dialog() {
 }
 
 function _load_bezier_input_dialog_data() {
-    var input = document.getElementById('bezier_input_area').value;
-    if( input && input.indexOf("\"") != -1 ) {
-	// Input contains quotation marks, so it is probably a JSON bezier path
-	if( setBezierPathFromJSON(input,0) ) 
-	    messageBox.hide();
-    } else {
+  var input = document.getElementById('bezier_input_area').value;
 
-	// Input contains to quotation marks, so it is probably a reduced list representation
-	if( setBezierPathFromReducedListRepresentation(input,0) )
-	    messageBox.hide();
-
-    }
+  if( input && input.indexOf("\"") != -1 ) {
+    // Input contains quotation marks, so it is probably a JSON bezier path
+    if( setBezierPathFromJSON(input,0) ) 
+      messageBox.hide();
+  } else {
+    // Input contains to quotation marks, so it is probably a reduced list representation
+    if( setBezierPathFromReducedListRepresentation(input,0) )
+      messageBox.hide();
+  }
 }
 
 
@@ -1542,25 +1500,24 @@ function _load_bezier_input_dialog_data() {
  * It is required by merchants to retrieve the bezier string for setting up presets.
  **/
 function display_bezier_string() {
-    //window.alert( "\"" + this.bezierCanvasHandler.getBezierPath().toJSON().replace( /"/g, "\\\"" ) + "\"" );
+  //window.alert( "\"" + this.bezierCanvasHandler.getBezierPath().toJSON().replace( /"/g, "\\\"" ) + "\"" );
 
-    var bezierJSON = this.bezierCanvasHandler.getBezierPath().toJSON();
-    //var reducedBezierJSON = this.bezierCanvasHandler.getBezierPath().toReducedListRepresentation( 1 ); // one digit
+  var bezierJSON = this.bezierCanvasHandler.getBezierPath().toJSON();
+  //var reducedBezierJSON = this.bezierCanvasHandler.getBezierPath().toReducedListRepresentation( 1 ); // one digit
 
-    var html = 
-	"<br/>\n" +
-	"Bezier String (JSON):<br/>\n" +
-	"<textarea id=\"bezier_input_area\" cols=\"70\" rows=\"22\" readonly=\"readonly\">" + bezierJSON + "</textarea><br/>\n" +
-	//"<button onclick=\"if( setBezierPathFromJSON(document.getElementById('bezier_input_area').value,0) ) messageBox.hide();\">Load</button>\n" +
-	//"<button onclick=\"document.getElementById('bezier_input_area').value = '';\">Clear</button>\n" +
-	"<button onclick=\"messageBox.hide();\">Close</button>\n";
+  var html = 
+    "<br/>\n" +
+    "Bezier String (JSON):<br/>\n" +
+    "<textarea id=\"bezier_input_area\" cols=\"70\" rows=\"22\" readonly=\"readonly\">" + bezierJSON + "</textarea><br/>\n" +
+    //"<button onclick=\"if( setBezierPathFromJSON(document.getElementById('bezier_input_area').value,0) ) messageBox.hide();\">Load</button>\n" +
+    //"<button onclick=\"document.getElementById('bezier_input_area').value = '';\">Clear</button>\n" +
+    "<button onclick=\"messageBox.hide();\">Close</button>\n";
 
-    messageBox.show( html, 
-		     
-		     // Make this message box extra large
-		     IKRS.MessageBox.DEFAULT_WIDTH*2, 
-		     IKRS.MessageBox.DEFAULT_HEIGHT*2.5 
-		   );
+  messageBox.show( html, 
+      // Make this message box extra large
+      IKRS.MessageBox.DEFAULT_WIDTH*2, 
+      IKRS.MessageBox.DEFAULT_HEIGHT*2.5 
+      );
 }
 
 
